@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 import yt_dlp
+import os
 
 app = Flask(__name__)
 
@@ -13,12 +14,13 @@ def get_stream():
         'quiet': True,
         'format': 'bestaudio[ext=m4a]/bestvideo+bestaudio/best',
         'skip_download': True,
+        'cookiefile': os.path.join(os.getcwd(), 'cookies.txt')
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            return jsonify({'stream_url': info['url'], 'title': info['title']})
+            return jsonify({'stream_url': info['url'], 'title': info.get('title', 'Unknown')})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
