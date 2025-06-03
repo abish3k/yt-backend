@@ -1,28 +1,28 @@
+# yt_dlp_server.py
 from flask import Flask, request, jsonify
-import yt_dlp
-import os
+import subprocess
 
 app = Flask(__name__)
 
-@app.route('/get_stream')
-def get_stream():
-    url = request.args.get('url')
-    if not url:
-        return jsonify({'error': 'Missing YouTube URL'}), 400
-
-    ydl_opts = {
-        'quiet': True,
-        'format': 'bestaudio[ext=m4a]/bestvideo+bestaudio/best',
-        'skip_download': True,
-        'cookiefile': os.path.join(os.getcwd(), 'cookies.txt')
-    }
+@app.route("/resolve")
+def resolve():
+    video_id = request.args.get("id")
+    if not video_id:
+        return jsonify({"error": "Missing id parameter"}), 400
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            return jsonify({'stream_url': info['url'], 'title': info.get('title', 'Unknown')})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        result = subprocess.run([
+            "yt-dlp", "-f", "best", "-g", f"https://www.youtube.com/watch?v={video_id}"
+        ], capture_output=True, text=True, check=True)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+        stream_url = result.stdout.strip()
+        return jsonify({"url": stream_url})
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": "yt-dlp failed", "details": e.stderr}), 500
+
+@app.route("/health")
+def health():
+    return "OK", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
