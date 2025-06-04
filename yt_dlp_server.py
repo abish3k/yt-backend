@@ -10,11 +10,15 @@ def info():
         return jsonify({"error": "Missing url parameter"}), 400
 
     ydl_opts = {
-        "quiet": True,
-        "skip_download": True,
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
-        "forcejson": True
-    }
+    "quiet": True,
+    "skip_download": True,
+    "format": "best[ext=mp4]",
+    "extractor_args": {
+        "youtube": ["client=web"]
+    },
+    "forcejson": True
+}
+
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
