@@ -20,6 +20,36 @@ def resolve():
     except subprocess.CalledProcessError as e:
         return jsonify({"error": "yt-dlp failed", "details": e.stderr}), 500
 
+
+@app.route("/info")
+def info():
+    video_url = request.args.get("url")
+    if not video_url:
+        return jsonify({"error": "Missing url parameter"}), 400
+
+    try:
+        result = subprocess.run([
+            "yt-dlp", "-f", "best", "-g", video_url
+        ], capture_output=True, text=True, check=True)
+
+        stream_url = result.stdout.strip()
+
+        # Get title
+        title_result = subprocess.run([
+            "yt-dlp", "--get-title", video_url
+        ], capture_output=True, text=True, check=True)
+
+        title = title_result.stdout.strip()
+
+        return jsonify({
+            "title": title,
+            "url": stream_url
+        })
+
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": "yt-dlp failed", "details": e.stderr}), 500
+
+
 @app.route("/health")
 def health():
     return "OK", 200
