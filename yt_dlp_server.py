@@ -1,25 +1,7 @@
-# yt_dlp_server.py
 from flask import Flask, request, jsonify
-import subprocess
+import yt_dlp
 
 app = Flask(__name__)
-
-@app.route("/resolve")
-def resolve():
-    video_id = request.args.get("id")
-    if not video_id:
-        return jsonify({"error": "Missing id parameter"}), 400
-
-    try:
-        result = subprocess.run([
-            "yt-dlp", "-f", "best", "-g", f"https://www.youtube.com/watch?v={video_id}"
-        ], capture_output=True, text=True, check=True)
-
-        stream_url = result.stdout.strip()
-        return jsonify({"url": stream_url})
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": "yt-dlp failed", "details": e.stderr}), 500
-
 
 @app.route("/info")
 def info():
@@ -27,28 +9,34 @@ def info():
     if not video_url:
         return jsonify({"error": "Missing url parameter"}), 400
 
+    ydl_opts = {
+        "quiet": True,
+        "skip_download": True,
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+        "forcejson": True
+    }
+
     try:
-        result = subprocess.run([
-            "yt-dlp", "-f", "best", "-g", video_url
-        ], capture_output=True, text=True, check=True)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
 
-        stream_url = result.stdout.strip()
+            formats = []
+            for fmt in info.get("formats", []):
+                if fmt.get("ext") == "mp4" and "url" in fmt:
+                    quality = fmt.get("format_note") or fmt.get("height", "Unknown")
+                    formats.append({
+                        "quality": f"{quality}p" if isinstance(quality, int) else quality,
+                        "url": fmt["url"]
+                    })
 
-        # Get title
-        title_result = subprocess.run([
-            "yt-dlp", "--get-title", video_url
-        ], capture_output=True, text=True, check=True)
+            formats = sorted(formats, key=lambda x: int(x["quality"].replace('p','')) if x["quality"].endswith("p") else 0, reverse=True)
 
-        title = title_result.stdout.strip()
-
-        return jsonify({
-            "title": title,
-            "url": stream_url
-        })
-
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": "yt-dlp failed", "details": e.stderr}), 500
-
+            return jsonify({
+                "title": info.get("title", "Unknown"),
+                "formats": formats
+            })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/health")
 def health():
