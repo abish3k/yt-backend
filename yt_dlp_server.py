@@ -12,7 +12,7 @@ def info():
     ydl_opts = {
         "quiet": True,
         "skip_download": True,
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "format": "best[ext=mp4]/best",
         "extractor_args": {
             "youtube": ["client=web"]  # Avoid SABR client
         }
@@ -24,7 +24,13 @@ def info():
 
             formats = []
             for fmt in info.get("formats", []):
-                if fmt.get("ext") == "mp4" and fmt.get("url"):
+                # Filter only muxed formats (have audio and video)
+                if (
+                    fmt.get("ext") == "mp4"
+                    and fmt.get("url")
+                    and fmt.get("vcodec") != "none"
+                    and fmt.get("acodec") != "none"
+                ):
                     quality = fmt.get("format_note") or str(fmt.get("height") or "Unknown")
                     formats.append({
                         "quality": f"{quality}p" if quality.isdigit() else quality,
@@ -44,6 +50,7 @@ def info():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/")
 def home():
