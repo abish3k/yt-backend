@@ -3,53 +3,27 @@ import yt_dlp
 
 app = Flask(__name__)
 
+from urllib.parse import urlparse, parse_qs
+
 @app.route("/info")
 def info():
-    video_url = request.args.get("url")
-    if not video_url:
+    raw_url = request.args.get("url")
+    if not raw_url:
         return jsonify({"error": "Missing url parameter"}), 400
 
-    ydl_opts = {
-        "quiet": True,
-        "skip_download": True,
-        "format": "best[ext=mp4]/best",
-        "extractor_args": {
-            "youtube": ["client=web"]  # Avoid SABR client
-        }
-    }
+    # Rebuild the URL to isolate video param
+    if "youtube.com" not in raw_url and "http" not in raw_url:
+        # Assume raw_url is just a video ID or partial
+        raw_url = f"https://www.youtube.com/watch?v={raw_url}"
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=False)
+    # Optional: strip playlist if present
+    parsed = urlparse(raw_url)
+    qs = parse_qs(parsed.query)
+    if "v" in qs:
+        video_id = qs["v"][0]
+        raw_url = f"https://www.youtube.com/watch?v={video_id}"
 
-            formats = []
-            for fmt in info.get("formats", []):
-                # Filter only muxed formats (have audio and video)
-                if (
-                    fmt.get("ext") == "mp4"
-                    and fmt.get("url")
-                    and fmt.get("vcodec") != "none"
-                    and fmt.get("acodec") != "none"
-                ):
-                    quality = fmt.get("format_note") or str(fmt.get("height") or "Unknown")
-                    formats.append({
-                        "quality": f"{quality}p" if quality.isdigit() else quality,
-                        "url": fmt["url"]
-                    })
-
-            formats = sorted(
-                formats,
-                key=lambda x: int(x["quality"].replace("p", "")) if x["quality"].endswith("p") else 0,
-                reverse=True
-            )
-
-            return jsonify({
-                "title": info.get("title", "Unknown"),
-                "formats": formats
-            })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    ...
 
 
 @app.route("/")
